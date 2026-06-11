@@ -21,6 +21,43 @@ The socket path should be available inside the Flatpak application:
 $XDG_RUNTIME_DIR/podman/podman.sock
 ```
 
+**WARNING** \
+podman/podman-compose won't work by default here, because nested containers in Flatpak are problematic. \
+They only can work in "remote" mode, e.g. to connect via UNIX socket to Podman service on host.
+
+While podman has `--remote` option, podman-compose [doesn't have one](https://github.com/containers/podman-compose/issues/849). \
+So the only way to make it work is trick them to use remote mode by default.
+
+There are two known possibilities to do so:
+- Inside the Flatpak, create [containers.conf](https://github.com/containers/container-libs/blob/main/common/docs/containers.conf.5.md) file with following content:
+  ```console
+  $ cat $XDG_CONFIG_HOME/containers/containers.conf
+  [engine]
+  remote = true
+  ```
+- Set the environment variable `CONTAINER_HOST`. You can even set it to an empty value, that will use Podman socket for the remote:
+  ```console
+  $ export CONTAINER_HOST=
+  $ podman-compose ...
+  ## or
+  $ CONTAINER_HOST= podman-compose ...
+  ```
+### Interact with host containers
+Alternative to this extension is to run podman/podman-compose on host via host-spawn or flatpak-spawn in flatpak. \
+To do that, it's convenient to make a links in the flatpak, if you have `host-spawn` available there.
+
+For VS Code flatpak:
+```console
+ln -s /app/bin/host-spawn ${HOME}/.var/app/com.visualstudio.code/data/node_modules/bin/podman
+ln -s /app/bin/host-spawn ${HOME}/.var/app/com.visualstudio.code/data/node_modules/bin/podman-compose
+```
+Then just use `podman`/`podman-compose` in terminal, Settings, etc. to call corresponding services on host.
+
+You would also need to share `/tmp` directory if you want to build Dev Containers:
+```
+flatpak override --user --filesystem=/tmp com.visualstudio.code
+```
+
 ## Usage
 
 ### PhpStorm
@@ -48,7 +85,9 @@ Open VSCode, run command `Open User Settings (JSON)` and append:
 "docker.dockerPath": "/usr/lib/sdk/podman/bin/podman-remote"
 ```
 
-> Note: Replace <UID> with the user-id that runs the socket.
+> Note:
+> - Replace \<UID\> with the user-id that runs the socket.
+> - For `podman-compose`, see the WARNING above.
 
 Restart the editor to apply changes.
 
@@ -74,6 +113,8 @@ It may be required for certain devcontainer images to force the Docker format wh
   }
 }
 ```
+> Note: If you use host-spawn podman/podman-compose, see the section [above](#interact-with-host-containers
+) for `/tmp` share.
 
 ## Build
 
